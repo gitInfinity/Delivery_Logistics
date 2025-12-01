@@ -3,10 +3,334 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Home page</title>
+    <title>Delivery Cost Predictor</title>
+    <style>
+        :root {
+            --primary: #4F46E5;
+            --primary-hover: #4338ca;
+            --bg: #F3F4F6;
+            --card: #ffffff;
+            --text: #1F2937;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+
+        .container {
+            background-color: var(--card);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 800px;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--primary);
+            margin-bottom: 1.5rem;
+        }
+
+        .result-box {
+            background-color: #e0e7ff;
+            border: 1px solid #c7d2fe;
+            color: #3730a3;
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+        }
+
+        form {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .full-width {
+            grid-column: span 2;
+        }
+
+        label {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        input, select {
+            padding: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        button {
+            background-color: var(--primary);
+            color: white;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 640px) {
+            form {
+                grid-template-columns: 1fr;
+            }
+            .full-width {
+                grid-column: span 1;
+            }
+        }
+    </style>
 </head>
 <body>
-    
+
+    <div class="container">
+        <h1>📦 Delivery Cost Estimator</h1>
+
+        <!-- Prediction Result Display -->
+        {% if prediction_text %}
+        <div class="result-box">
+            {{ prediction_text }}
+        </div>
+        {% endif %}
+
+        <form action="{{ url_for('predict') }}" method="post" id="predictionForm">
+            
+            <!-- 
+               IMPORTANT: 
+               The Python code reads inputs sequentially using request.form.values().
+               Therefore, the order of the inputs below MUST MATCH the training columns EXACTLY.
+               
+               I have used Hidden Inputs for the One-Hot Encoded fields. 
+               The JavaScript at the bottom updates these 0s and 1s based on the user's dropdown selection.
+            -->
+
+            <!-- 1. NUMERICAL INPUTS -->
+            <div class="form-group">
+                <label for="distance">Distance (km)</label>
+                <input type="number" step="0.1" name="distance_km" required placeholder="e.g. 12.5">
+            </div>
+
+            <div class="form-group">
+                <label for="weight">Package Weight (kg)</label>
+                <input type="number" step="0.1" name="package_weight_kg" required placeholder="e.g. 5.0">
+            </div>
+
+            <!-- 
+                USER SELECTION DROPDOWNS 
+                Note: These do NOT have a 'name' attribute, so they are NOT sent to Flask directly.
+                They are used by JS to update the hidden fields below.
+            -->
+            
+            <div class="form-group">
+                <label>Vehicle Type</label>
+                <select id="sel_vehicle" onchange="updateOHE('vehicle', this.value)">
+                    <option value="bike">Bike</option>
+                    <option value="ev bike">EV Bike</option>
+                    <option value="ev van">EV Van</option>
+                    <option value="scooter">Scooter</option>
+                    <option value="truck">Truck</option>
+                    <option value="van">Van</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Delivery Mode</label>
+                <select id="sel_mode" onchange="updateOHE('mode', this.value)">
+                    <option value="express">Express</option>
+                    <option value="same day">Same Day</option>
+                    <option value="standard">Standard</option>
+                    <option value="two day">Two Day</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Weather Condition</label>
+                <select id="sel_weather" onchange="updateOHE('weather', this.value)">
+                    <option value="clear">Clear</option>
+                    <option value="cold">Cold</option>
+                    <option value="foggy">Foggy</option>
+                    <option value="hot">Hot</option>
+                    <option value="rainy">Rainy</option>
+                    <option value="stormy">Stormy</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Region</label>
+                <select id="sel_region" onchange="updateOHE('region', this.value)">
+                    <option value="central">Central</option>
+                    <option value="east">East</option>
+                    <option value="north">North</option>
+                    <option value="south">South</option>
+                    <option value="west">West</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Delivery Status (Simulated)</label>
+                <select id="sel_status" onchange="updateOHE('status', this.value)">
+                    <option value="delivered" selected>Delivered (Default)</option>
+                    <option value="delayed">Delayed</option>
+                    <option value="failed">Failed</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Package Type</label>
+                <select id="sel_package" onchange="updateOHE('package', this.value)">
+                    <option value="automobile parts">Automobile Parts</option>
+                    <option value="clothing">Clothing</option>
+                    <option value="cosmetics">Cosmetics</option>
+                    <option value="documents">Documents</option>
+                    <option value="electronics">Electronics</option>
+                    <option value="fragile items">Fragile Items</option>
+                    <option value="furniture">Furniture</option>
+                    <option value="groceries">Groceries</option>
+                    <option value="pharmacy">Pharmacy</option>
+                </select>
+            </div>
+
+            <div class="form-group full-width">
+                <label>Delivery Partner</label>
+                <select id="sel_partner" onchange="updateOHE('partner', this.value)">
+                    <option value="amazon logistics">Amazon Logistics</option>
+                    <option value="blue dart">Blue Dart</option>
+                    <option value="delhivery">Delhivery</option>
+                    <option value="dhl">DHL</option>
+                    <option value="ecom express">Ecom Express</option>
+                    <option value="ekart">Ekart</option>
+                    <option value="fedex">FedEx</option>
+                    <option value="shadowfax">Shadowfax</option>
+                    <option value="xpressbees">Xpressbees</option>
+                </select>
+            </div>
+
+            <!-- 
+                HIDDEN INPUTS (The Actual Data sent to Flask)
+                The order here matches your CSV column order exactly.
+                JS will set the value to "1" if selected, "0" otherwise.
+            -->
+
+            <!-- Vehicle Type -->
+            <input type="hidden" name="vehicle_type_bike" class="ohe-vehicle" data-val="bike" value="0">
+            <input type="hidden" name="vehicle_type_ev bike" class="ohe-vehicle" data-val="ev bike" value="0">
+            <input type="hidden" name="vehicle_type_ev van" class="ohe-vehicle" data-val="ev van" value="0">
+            <input type="hidden" name="vehicle_type_scooter" class="ohe-vehicle" data-val="scooter" value="0">
+            <input type="hidden" name="vehicle_type_truck" class="ohe-vehicle" data-val="truck" value="0">
+            <input type="hidden" name="vehicle_type_van" class="ohe-vehicle" data-val="van" value="0">
+
+            <!-- Delivery Mode -->
+            <input type="hidden" name="delivery_mode_express" class="ohe-mode" data-val="express" value="0">
+            <input type="hidden" name="delivery_mode_same day" class="ohe-mode" data-val="same day" value="0">
+            <input type="hidden" name="delivery_mode_standard" class="ohe-mode" data-val="standard" value="0">
+            <input type="hidden" name="delivery_mode_two day" class="ohe-mode" data-val="two day" value="0">
+
+            <!-- Weather -->
+            <input type="hidden" name="weather_condition_clear" class="ohe-weather" data-val="clear" value="0">
+            <input type="hidden" name="weather_condition_cold" class="ohe-weather" data-val="cold" value="0">
+            <input type="hidden" name="weather_condition_foggy" class="ohe-weather" data-val="foggy" value="0">
+            <input type="hidden" name="weather_condition_hot" class="ohe-weather" data-val="hot" value="0">
+            <input type="hidden" name="weather_condition_rainy" class="ohe-weather" data-val="rainy" value="0">
+            <input type="hidden" name="weather_condition_stormy" class="ohe-weather" data-val="stormy" value="0">
+
+            <!-- Region -->
+            <input type="hidden" name="region_central" class="ohe-region" data-val="central" value="0">
+            <input type="hidden" name="region_east" class="ohe-region" data-val="east" value="0">
+            <input type="hidden" name="region_north" class="ohe-region" data-val="north" value="0">
+            <input type="hidden" name="region_south" class="ohe-region" data-val="south" value="0">
+            <input type="hidden" name="region_west" class="ohe-region" data-val="west" value="0">
+
+            <!-- Status -->
+            <input type="hidden" name="delivery_status_delayed" class="ohe-status" data-val="delayed" value="0">
+            <input type="hidden" name="delivery_status_delivered" class="ohe-status" data-val="delivered" value="0">
+            <input type="hidden" name="delivery_status_failed" class="ohe-status" data-val="failed" value="0">
+
+            <!-- Package Type -->
+            <input type="hidden" name="package_type_automobile parts" class="ohe-package" data-val="automobile parts" value="0">
+            <input type="hidden" name="package_type_clothing" class="ohe-package" data-val="clothing" value="0">
+            <input type="hidden" name="package_type_cosmetics" class="ohe-package" data-val="cosmetics" value="0">
+            <input type="hidden" name="package_type_documents" class="ohe-package" data-val="documents" value="0">
+            <input type="hidden" name="package_type_electronics" class="ohe-package" data-val="electronics" value="0">
+            <input type="hidden" name="package_type_fragile items" class="ohe-package" data-val="fragile items" value="0">
+            <input type="hidden" name="package_type_furniture" class="ohe-package" data-val="furniture" value="0">
+            <input type="hidden" name="package_type_groceries" class="ohe-package" data-val="groceries" value="0">
+            <input type="hidden" name="package_type_pharmacy" class="ohe-package" data-val="pharmacy" value="0">
+
+            <!-- Partner -->
+            <input type="hidden" name="delivery_partner_amazon logistics" class="ohe-partner" data-val="amazon logistics" value="0">
+            <input type="hidden" name="delivery_partner_blue dart" class="ohe-partner" data-val="blue dart" value="0">
+            <input type="hidden" name="delivery_partner_delhivery" class="ohe-partner" data-val="delhivery" value="0">
+            <input type="hidden" name="delivery_partner_dhl" class="ohe-partner" data-val="dhl" value="0">
+            <input type="hidden" name="delivery_partner_ecom express" class="ohe-partner" data-val="ecom express" value="0">
+            <input type="hidden" name="delivery_partner_ekart" class="ohe-partner" data-val="ekart" value="0">
+            <input type="hidden" name="delivery_partner_fedex" class="ohe-partner" data-val="fedex" value="0">
+            <input type="hidden" name="delivery_partner_shadowfax" class="ohe-partner" data-val="shadowfax" value="0">
+            <input type="hidden" name="delivery_partner_xpressbees" class="ohe-partner" data-val="xpressbees" value="0">
+
+            <button type="submit" class="full-width">Calculate Cost</button>
+        </form>
+    </div>
+
+    <script>
+        // This function sets the correct Hidden Input to "1" based on the Dropdown selection
+        // and sets all other inputs in that group to "0"
+        function updateOHE(group, selectedValue) {
+            // Get all hidden inputs for this specific group (e.g., all vehicle inputs)
+            const inputs = document.querySelectorAll(`.ohe-${group}`);
+            
+            inputs.forEach(input => {
+                if (input.dataset.val === selectedValue) {
+                    input.value = "1";
+                } else {
+                    input.value = "0";
+                }
+            });
+        }
+
+        // Initialize defaults on page load
+        window.onload = function() {
+            updateOHE('vehicle', document.getElementById('sel_vehicle').value);
+            updateOHE('mode', document.getElementById('sel_mode').value);
+            updateOHE('weather', document.getElementById('sel_weather').value);
+            updateOHE('region', document.getElementById('sel_region').value);
+            updateOHE('status', document.getElementById('sel_status').value);
+            updateOHE('package', document.getElementById('sel_package').value);
+            updateOHE('partner', document.getElementById('sel_partner').value);
+        };
+    </script>
 </body>
 </html>
-<h1>Hello, World!</h1>
